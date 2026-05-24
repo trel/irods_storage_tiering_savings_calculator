@@ -1,0 +1,866 @@
+<!--
+serve with
+python3 -m http.server
+-->
+
+<!DOCTYPE html><html lang="en"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Storage Tiering - Savings Calculator</title>
+  <link rel="stylesheet">
+  <script src="https://code.jquery.com/jquery-3.7.1.js"></script>
+  <script src="https://code.jquery.com/ui/1.14.1/jquery-ui.js"></script>
+  <script src='https://cdn.plot.ly/plotly-3.0.1.min.js'></script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+      background: #18bc9c;
+      background: #ccc;
+      min-height: 100vh;
+      padding: 2rem;
+      color: #2d3748;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+      padding: 2.5rem;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: #1a202c;
+      margin-bottom: 0.5rem;
+      letter-spacing: -0.5px;
+    }
+
+    .subtitle {
+      color: #718096;
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+    }
+
+    .controls-section {
+      background: #f7fafc;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+      border: 1px solid #e2e8f0;
+    }
+
+    .controls-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #2d3748;
+      margin-bottom: 0.75rem;
+      display: block;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    #possibletiers {
+      width: 100%;
+      padding: 0.75rem;
+      margin-bottom: 20px;
+      border: 0px solid #cbd5e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      background: white;
+      transition: all 0.2s;
+    }
+
+    #possibletiers:focus {
+      outline: none;
+      border-color: white;
+    }
+
+    #possibletiers option {
+      padding: 0.5rem;
+      border-radius: 4px;
+      margin: 0px 0;
+      display: inline-block;
+      margin-right: 10px; /* Add some spacing between options */
+    }
+
+    #possibletiers option:checked {
+      background: #18bc9c;
+      color: white;
+    }
+
+    .charts-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 10px;
+    }
+
+    .chart-container {
+      width: 100%;
+      height: auto;
+    }
+
+    .table-section {
+      margin-top: 2rem;
+    }
+
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #1a202c;
+      margin-bottom: 1rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 3px solid #667eea;
+    }
+
+    .tier-table {
+      width: 100%;
+      border-collapse: separate;
+      border-spacing: 0;
+      margin-top: 1rem;
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      border: 1px solid #e2e8f0;
+    }
+
+    .tier-table thead {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: #18bc9c;
+    }
+
+    .tier-table th {
+      padding: 1rem;
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.9rem;
+      color: white;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .tier-table td {
+      padding: 1rem;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.95rem;
+      font-weight: bold;
+    }
+
+    .tier-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    .tier-table tbody tr:hover {
+      background: #f7fafc;
+    }
+
+    .row-label {
+      font-weight: 600;
+      color: #2d3748;
+      background: #f7fafc;
+      width: 200px;
+    }
+
+    .price-input {
+      width: 100%;
+      padding: 0.5rem;
+      border: 2px solid #cbd5e0;
+      border-radius: 6px;
+      font-size: 20px;
+      transition: all 0.2s;
+      font-family: 'Courier New', monospace;
+      font-weight: bold;
+    }
+
+    .price-input:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+    }
+
+    .cost-value {
+      font-weight: 600;
+      color: #2d9f5f;
+      font-family: 'Courier New', monospace;
+    }
+
+    .bytes-value {
+      font-family: 'Courier New', monospace;
+      color: #4a5568;
+    }
+
+    .tier-name {
+      font-weight: 600;
+      color: #667eea;
+    }
+
+    .savings-section {
+      margin-top: 3rem;
+      border-radius: 16px;
+    }
+
+    .savings-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 1.5rem;
+      margin-top: 1.5rem;
+    }
+
+    .savings-card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+      border: 2px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .savings-card:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+    }
+
+    .savings-card.highlight {
+      background: #18bc9c;
+      color: white;
+      border-color: #2f855a;
+      transform: scale(1.05);
+    }
+
+    .savings-card.highlight:hover {
+      transform: scale(1.05) translateY(-2px);
+    }
+
+    .savings-label {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+      opacity: 0.8;
+      margin-bottom: 0.5rem;
+    }
+
+    .savings-card.highlight .savings-label {
+      opacity: 0.95;
+    }
+
+    .savings-amount {
+      font-size: 2.5rem;
+      font-weight: 700;
+      font-family: 'Courier New', monospace;
+      line-height: 1.2;
+    }
+
+    .savings-card.highlight .savings-amount {
+      font-size: 3rem;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .savings-description {
+      font-size: 18px;
+      margin-top: 0.5rem;
+      opacity: 0.7;
+    }
+
+    .savings-card.highlight .savings-description {
+      opacity: 0.9;
+    }
+
+    .savings-percent-description {
+      font-size: 2rem;
+      margin-top: 0.5rem;
+      opacity: 0.7;
+    }
+
+    @media (max-width: 768px) {
+      body {
+        padding: 1rem;
+      }
+
+      .container {
+        padding: 1.5rem;
+      }
+
+      h1 {
+        font-size: 1.8rem;
+      }
+
+      .charts-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .tier-table {
+        font-size: 0.85rem;
+      }
+
+      .tier-table th,
+      .tier-table td {
+        padding: 0.75rem 0.5rem;
+      }
+
+      .savings-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+
+      .savings-card.highlight {
+        transform: scale(1);
+        order: -1;
+      }
+
+      .savings-amount {
+        font-size: 2rem;
+      }
+
+      .savings-card.highlight .savings-amount {
+        font-size: 2.5rem;
+      }
+    }
+
+    .info-note {
+      background: #edf2f7;
+      border-left: 4px solid #667eea;
+      padding: 1rem;
+      margin-bottom: 2rem;
+      border-radius: 4px;
+      color: #4a5568;
+      font-size: 0.95rem;
+    }
+
+    .loader-container {
+      margin-top: 150px;
+      background-color: rgba(255, 255, 255, 0.8); /* Semi-transparent background */
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .spinner {
+      border: 8px solid #f3f3f3; /* Light grey */
+      border-top: 8px solid #18bc9c;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite; /* Spinning animation */
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+  </style>
+
+  <script>
+
+      // initialization
+      binned_data = []
+
+      // time segments in seconds
+      time_segments = {
+//          'oneminute':  [60, '1 Minute'],
+//          'halfhour':   [60 * 30, '30 Minutes'],
+//          'onehour':    [60 * 60, '1 Hour'],
+          'oneday':     [60 * 60 * 24, '1 Day'],
+          'oneweek':    [60 * 60 * 24 * 7, '1 Week'],
+          'onemonth':   [60 * 60 * 24 * 30, '1 Month'],
+          'sixmonths':  [60 * 60 * 24 * 183, '6 Months'],
+          'oneyear':    [60 * 60 * 24 * 365, '1 Year'],
+          'twoyears':   [60 * 60 * 24 * 365 * 2, '2 Years'],
+//          'fiveyears':  [60 * 60 * 24 * 365 * 5, '5 Years'],
+      }
+
+      // Default pricing per TB per year (in dollars or euros)
+      default_pricing = {
+          'oneminute': 1200,
+          'halfhour': 1200,
+          'onehour': 1200,
+          'oneday': 1200,
+          'oneweek': 800,
+          'onemonth': 500,
+          'sixmonths': 300,
+          'oneyear': 200,
+          'twoyears': 100,
+          'fiveyears': 50,
+          'older': 30
+      }
+
+      function get_binned_data() {
+          datafile = 'web.json'
+          fetch(datafile)
+              .then(response => {
+                  if (!response.ok) {
+                      throw new Error('Network response was not ok');
+                  }
+                  return response.json();
+              })
+              .then(data => {
+                  console.log('got '+datafile);
+                  binned_data = data
+              })
+              .catch(error => console.error('Error fetching JSON:', error));
+      }
+
+      function formatBytes(bytes) {
+          if (bytes === 0) return '0 B';
+          const k = 1024;
+          const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
+          const i = Math.floor(Math.log(bytes) / Math.log(k));
+          return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+      }
+
+      function formatCurrency(cents) {
+          return '$' + (cents / 100).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+      }
+
+      function calculateCost(bytes, pricePerTBPerYear) {
+          const terabytes = bytes / (1024 * 1024 * 1024 * 1024);
+          return terabytes * pricePerTBPerYear;
+      }
+
+      function updateSavings(tiered_data) {
+          if (tiered_data.length === 0) {
+              $('#savings-section').hide();
+              return;
+          }
+
+          // Calculate total files
+          let totalFiles = 0;
+          tiered_data.forEach(function(tier) {
+              totalFiles += tier.count;
+          });
+
+          // Calculate total bytes
+          let totalBytes = 0;
+          tiered_data.forEach(function(tier) {
+              totalBytes += tier.size;
+          });
+
+          if (totalBytes === 0) {
+              $('#savings-section').hide();
+              return;
+          }
+
+          // Find the most expensive tier price from the DISPLAYED tiers only
+          let maxPrice = 0;
+          tiered_data.forEach(function(tier) {
+              const priceInput = $('.price-input[data-tier="' + tier.name + '"]');
+              if (priceInput.length > 0) {
+                  const price = parseFloat(priceInput.val()) || 0;
+                  if (price > maxPrice) {
+                      maxPrice = price;
+                  }
+              }
+          });
+
+          // Calculate untiered cost (all data at most expensive price)
+          let untieredCost = calculateCost(totalBytes, maxPrice * 100);
+          untieredCost = parseFloat(untieredCost.toFixed(0));
+//          console.log('untiered', untieredCost);
+
+          // Calculate tiered cost (sum of each tier's cost)
+          let tieredCost = 0;
+          tiered_data.forEach(function(tier) {
+              const priceInput = $('.price-input[data-tier="' + tier.name + '"]');
+              if (priceInput.length > 0) {
+                  const price = parseFloat(priceInput.val()) || 0;
+                  tieredCost += calculateCost(tier.size, price * 100);
+              }
+          });
+          tieredCost = parseFloat(tieredCost.toFixed(0));
+//          console.log('tiered', tieredCost);
+
+          // Calculate savings
+          const savings = untieredCost - tieredCost;
+          const savingsPercent = untieredCost > 0 ? ((savings / untieredCost) * 100).toFixed(1) : 0;
+
+          // Update the display
+          $('#untiered-cost').text(formatCurrency(untieredCost));
+          $('#tiered-cost').text(formatCurrency(tieredCost));
+          $('#savings-amount').text(formatCurrency(savings));
+          $('#savings-percent').text('Save '+ savingsPercent + '%');
+          $('#untiered-description').text('All ' + formatBytes(totalBytes) + ' on most expensive tier');
+          $('#totals').text('Exploring ' + totalFiles + ' files ('+ formatBytes(totalBytes) + ')');
+
+      }
+
+      function updateTable(tiered_data) {
+          const tableBody = $('#tier-table-body');
+          tableBody.empty();
+
+          if (tiered_data.length === 0) {
+              tableBody.append('<tr><td colspan="100%" style="text-align: center; color: #718096; padding: 2rem;">Select tiers above to view analysis</td></tr>');
+              updateSavings([]);
+              return;
+          }
+
+          // Create header row with tier names
+          let headerRow = '<tr><th class="row-label">Metric</th>';
+          tiered_data.forEach(function(tier) {
+              const displayName = tier.name === 'older' ? 'Older' : time_segments[tier.name][1];
+              headerRow += '<th class="tier-name">' + displayName + '</th>';
+          });
+          headerRow += '</tr>';
+          $('#tier-table-head').html(headerRow);
+
+          // Bytes row
+          let bytesRow = '<tr><td class="row-label">Bytes</td>';
+          tiered_data.forEach(function(tier) {
+              bytesRow += '<td class="bytes-value"><span title="' + tier.size.toLocaleString() + ' bytes">' + formatBytes(tier.size) + '</td>';
+          });
+          bytesRow += '</tr>';
+          tableBody.append(bytesRow);
+
+          // Price per TB per year row (editable)
+          let priceRow = '<tr><td class="row-label">$ per TB/Year</td>';
+          tiered_data.forEach(function(tier) {
+              const defaultPrice = default_pricing[tier.name] || 50000;
+              priceRow += '<td><input type="number" class="price-input" data-tier="' + tier.name + '" value="' + defaultPrice + '" min="0" step="10"></td>';
+          });
+          priceRow += '</tr>';
+          tableBody.append(priceRow);
+
+          // Total cost row
+          let costRow = '<tr><td class="row-label">Annual Cost</td>';
+          tiered_data.forEach(function(tier) {
+              costRow += '<td class="cost-value" id="cost-' + tier.name + '">-</td>';
+          });
+          costRow += '</tr>';
+          tableBody.append(costRow);
+
+          // Wait for DOM to be ready, then calculate costs and attach events
+          setTimeout(function() {
+              // Calculate initial costs
+              tiered_data.forEach(function(tier) {
+                  const priceInput = $('.price-input[data-tier="' + tier.name + '"]');
+                  if (priceInput.length > 0) {
+                      const pricePerTB = parseFloat(priceInput.val() * 100) || 0;
+                      const cost = calculateCost(tier.size, pricePerTB);
+                      $('#cost-' + tier.name).text(formatCurrency(cost));
+                  }
+              });
+
+              // Add event listener for price changes
+              $('.price-input').off('input').on('input', function() {
+                  const tierName = $(this).data('tier');
+                  const pricePerTB = parseFloat($(this).val() * 100) || 0;
+                  const tierData = tiered_data.find(t => t.name === tierName);
+                  if (tierData) {
+                      const cost = calculateCost(tierData.size, pricePerTB);
+                      $('#cost-' + tierName).text(formatCurrency(cost));
+                  }
+                  // Recalculate savings when prices change
+                  updateSavings(tiered_data);
+              });
+
+              // Update savings after table is populated and costs calculated
+              updateSavings(tiered_data);
+          }, 50);
+      }
+
+      function paint_thecharts(selected_tiers) {
+          if (binned_data.length > 0) {
+
+              // calculate epoch timepoints of all tiers
+              time_now = Math.floor(Date.now() / 1000);
+              ago = {}
+              Object.entries(time_segments).forEach(([k, v]) => {
+                  ago[k] = time_now - v[0];
+              });
+
+              // build actual tiers to display
+              actual_tiers = [];
+              selected_tiers.forEach(function(val, i) {
+                  actual_tiers[i] = {'name': val};
+              });
+              actual_tiers.push({'name': 'older'});
+
+              tiered_data = []
+              actual_tiers.forEach(function(val, i){
+//                  console.log('preparing empties', i, val)
+                  tiered_data.push({
+                       'name': val['name'],
+                       'count': 0,
+                       'size': 0,
+                  });
+              });
+              binned_data.forEach(function(val, i) {
+                  for (let j = 0; j < actual_tiers.length; j++) {
+                      if (ago[actual_tiers[j].name]) {
+                          the_moment_in_time = ago[actual_tiers[j].name];
+                      }
+                      else {
+                          the_moment_in_time = 0;
+                      }
+
+                      day_date = new Date(val[0]+'Z'); // add 'Z' so Date() treats this as a UTC timestamp
+                      day_time = day_date.getTime() / 1000;
+//                      console.log('time compare', val[0], day_time, actual_tiers[j].name, the_moment_in_time);
+                      if (day_time > the_moment_in_time){
+                          // put the values in this bin
+                          if (!tiered_data[j]) {
+                              // first time, set it
+                              tiered_data[j] = { 'name': actual_tiers[j].name, 'count': parseInt(val[1]), 'size': parseInt(val[2]) };
+                          }
+                          else {
+                              // exists, add it
+                              tiered_data[j]['count'] += parseInt(val[1]);
+                              tiered_data[j]['size'] += parseInt(val[2]);
+                          }
+                          // break out of the tiers loop, we're done here
+                          break;
+                      }
+                  }
+//                  console.log('tiered_data', tiered_data)
+              });
+
+              chartready_data = []
+              tiered_data.forEach(function(val, i) {
+                  chartready_data.push([val['name'], val['count'], val['size']])
+              })
+
+              // swizzle it
+              const { times, counts, sizes } = chartready_data.reduce(
+                  (accumulator, [x, y, z]) => {
+                      if (x == 'older') {
+                          display_name = 'Older'
+                      }
+                      else {
+                          display_name = time_segments[x][1]
+                      }
+                      accumulator.times.push(display_name);
+                      accumulator.counts.push(y);
+                      accumulator.sizes.push(z);
+                      return accumulator;
+                  },
+                  { times: [], counts: [], sizes: [] }
+              );
+              
+              // prove it
+              console.log('times', times);
+              console.log('counts', counts);
+              console.log('sizes', sizes);
+              
+              // prep it
+              var counts_chart_layout = {
+                title: {
+                    text: 'Number of Files',
+                    font: { size: 24, color: '#1a202c', family: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto' }
+                },
+                height: 250,
+                margin: { t: 60, b: 80, l: 80, r: 40 },
+                yaxis: {
+                  gridcolor: '#e2e8f0',
+                  tickfont: { size: 17 }
+                },
+                xaxis: {
+                  tickangle: -45,
+                  tickfont: { size: 17 }
+                },
+                paper_bgcolor: 'white',
+                plot_bgcolor: '#f7fafc'
+              };
+              
+              var sizes_chart_layout = {
+                title: {
+                    text: 'Size of Files (bytes)',
+                    font: { size: 24, color: '#1a202c', family: '-apple-system, BlinkMacSystemFont, Segoe UI, Roboto' }
+                },
+                height: 250,
+                margin: { t: 60, b: 80, l: 80, r: 40 },
+                yaxis: {
+                  gridcolor: '#e2e8f0',
+                  tickfont: { size: 17 }
+                },
+                xaxis: {
+                  tickangle: -45,
+                  tickfont: { size: 17 }
+                },
+                paper_bgcolor: 'white',
+                plot_bgcolor: '#f7fafc'
+              };
+
+              // plot it
+              var counts_chart_data = [
+                {
+                  x: times,
+                  y: counts,
+                  type: 'bar',
+                  marker: {
+                    color: '#18bc9c',
+                    line: {
+//                      color: '#764ba2',
+                      width: 1
+                    }
+                  }
+                }
+              ];
+              
+              var sizes_chart_data = [
+                {
+                  x: times,
+                  y: sizes,
+                  type: 'bar',
+                  marker: {
+                    color: '#18bc9c',
+                    line: {
+//                      color: '#667eea',
+                      width: 1
+                    }
+                  }
+                }
+              ];
+              
+              $('#loader').hide();
+              $('#calculator').show();
+
+              Plotly.newPlot('counts_chart', counts_chart_data, counts_chart_layout, { responsive: true });
+              Plotly.newPlot('sizes_chart', sizes_chart_data, sizes_chart_layout, { responsive: true });
+
+              // Update the table
+              updateTable(tiered_data);
+          }
+      }
+
+      // loop until we have the binned_data
+      function binned_data_loop() {
+          if (binned_data.length > 0) {
+              clearInterval(binned_data_id); // Stop after binned_data acquired
+
+              const select = document.getElementById('possibletiers');
+              if (select) {
+                for (let i = 0; i < select.options.length; i++) {
+//                  if (select.options[i].value === 'sixmonths') {
+                    select.options[i].selected = true;
+//                    break;
+//                  }
+                }
+              }
+              theoptions = select.options
+              // get selected options
+              const selected_tiers = Array.from(theoptions)
+                  .filter(option => option.selected)
+                  .map(option => option.value);
+              // paint it
+//              console.log(selected_tiers)
+              paint_thecharts(selected_tiers);
+
+          }
+          else {
+              get_binned_data();
+          }
+      }
+      const binned_data_id = setInterval(binned_data_loop, 1000);
+
+  </script>
+</head>
+<body>
+
+<div class="container">
+  <div>
+      <div style="float: left; padding-right: 50px"><img src="https://irods.org/images/irods_logo.png" width="350px"></div>
+      <div>
+          <h1>Storage Tiering - Savings Calculator</h1>
+          <p class="subtitle">Explore cost savings of storing files by last access time</p>
+      </div>
+  </div>
+  <div id="loader" class="loader-container">
+      <div class="spinner"></div>
+  </div>
+  <div id="calculator" style="display: none;">
+      <div id="totals" class="section-title"></div>
+      <div id="controls-section" class="controls-section">
+        <div>
+          <label class="controls-label">Select 1 or more Tiers by Age</label>
+          <script>
+            const sorted_time_segments = Object.entries(time_segments);
+            sorted_time_segments.sort((a, b) => a[1][0] - b[1][0]);
+            document.write('<select id="possibletiers" multiple size="1">');
+            sorted_time_segments.forEach(function(val, i){
+                document.write('<option value="'+val[0]+'">'+val[1][1]+'</option>')
+            })
+            document.write('</select>');
+          </script>
+        </div>
+        <div class="charts-grid">
+          <div class="chart-container">
+            <div id="counts_chart"></div>
+          </div>
+          <div class="chart-container">
+            <div id="sizes_chart"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="table-section" class="table-section">
+        <h2 class="section-title">Cost by Tier</h2>
+        <table class="tier-table">
+          <thead id="tier-table-head">
+            <tr>
+              <th class="row-label">Metric</th>
+              <th colspan="100%" style="text-align: center;">Select tiers above to view analysis</th>
+            </tr>
+          </thead>
+          <tbody id="tier-table-body">
+          </tbody>
+        </table>
+      </div>
+
+      <div id="savings-section" class="savings-section">
+        <h2 class="section-title">Annual Savings</h2>
+        <div class="savings-grid">
+          <div class="savings-card">
+            <div class="savings-label">Untiered Cost</div>
+            <div class="savings-amount" id="untiered-cost">$0.00</div>
+            <div class="savings-description" id="untiered-description">All data on most expensive tier</div>
+          </div>
+      
+          <div class="savings-card">
+            <div class="savings-label">Tiered Cost</div>
+            <div class="savings-amount" id="tiered-cost">$0.00</div>
+            <div class="savings-description">With selected storage tiers</div>
+          </div>
+      
+          <div class="savings-card highlight">
+            <div class="savings-label">Annual Savings</div>
+            <div class="savings-amount" id="savings-amount">$0.00</div>
+            <div class="savings-percent-description" id="savings-percent">0%</div>
+          </div>
+        </div>
+      </div>
+   </div>
+</div>
+
+<script>
+
+    // watch the selection box for changes
+    var changeTimeout;
+    $('#possibletiers').change(function(){
+        clearTimeout(changeTimeout);
+        theoptions = this.options
+        changeTimeout = setTimeout(function(){
+
+          // get selected options
+          const selected_tiers = Array.from(theoptions)
+              .filter(option => option.selected)
+              .map(option => option.value);
+          // paint it
+          paint_thecharts(selected_tiers);
+
+        }, 100); // let the selections settle for half-a-second
+    });
+
+</script>
+
+</body></html>
